@@ -1,0 +1,152 @@
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/common/Button';
+import { Input } from '../components/common/Input';
+import { workspaceService } from '../services/workspace.service';
+import { Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
+
+export const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const { defaultWorkspaceId, defaultPageId } = await login(email, password);
+      if (defaultWorkspaceId && defaultPageId) {
+        navigate(`/workspace/${defaultWorkspaceId}/page/${defaultPageId}`);
+      } else {
+        // Fetch user workspaces
+        const workspaces = await workspaceService.list();
+        if (workspaces.length > 0) {
+          const ws = await workspaceService.getById(workspaces[0].id);
+          const firstPage = ws.pages?.[0];
+          if (firstPage) {
+            navigate(`/workspace/${ws.id}/page/${firstPage.id}`);
+            return;
+          }
+          navigate(`/workspace/${ws.id}`);
+          return;
+        }
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error?.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFillDemo = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('Password123!');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-4 selection:bg-brand-500 selection:text-white">
+      <div className="w-full max-w-md space-y-6">
+        {/* Brand Header */}
+        <div className="text-center space-y-2">
+          <Link to="/" className="inline-flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-cyan-400 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-brand-500/20">
+              S
+            </div>
+            <span className="text-2xl font-bold tracking-tight text-white">
+              SyncSpace
+            </span>
+          </Link>
+          <h2 className="text-xl font-semibold text-slate-100">Welcome back</h2>
+          <p className="text-xs text-slate-400">Log in to your collaborative workspace</p>
+        </div>
+
+        {/* Card Form */}
+        <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
+          {error && (
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Email Address"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              autoFocus
+            />
+
+            <Input
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+
+            <Button type="submit" size="lg" className="w-full" isLoading={isLoading}>
+              Sign In
+              <ArrowRight className="w-4 h-4 ml-1.5" />
+            </Button>
+          </form>
+
+          {/* Quick Demo Credentials Autofill */}
+          <div className="border-t border-slate-800 pt-5 space-y-2.5">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-brand-400" />
+              Quick Demo Accounts (1-Click Fill)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleFillDemo('alice@syncspace.io')}
+                className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-left transition-colors"
+              >
+                <p className="text-[11px] font-bold text-blue-400">Alice</p>
+                <p className="text-[9px] text-slate-400">Owner</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFillDemo('bob@syncspace.io')}
+                className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-left transition-colors"
+              >
+                <p className="text-[11px] font-bold text-emerald-400">Bob</p>
+                <p className="text-[9px] text-slate-400">Editor</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFillDemo('charlie@syncspace.io')}
+                className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-left transition-colors"
+              >
+                <p className="text-[11px] font-bold text-amber-400">Charlie</p>
+                <p className="text-[9px] text-slate-400">Viewer</p>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Register Link */}
+        <p className="text-center text-xs text-slate-400">
+          Don't have an account yet?{' '}
+          <Link to="/register" className="text-brand-400 hover:text-brand-300 font-semibold underline underline-offset-4">
+            Create an account
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+};

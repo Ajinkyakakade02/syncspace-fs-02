@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* TipTap Editor Styling */
+.ProseMirror {
+  outline: none;
+  min-height: 500px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #94a3b8;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Collaborative Caret & Selection Styles */
+.collaboration-cursor__caret {
+  border-left: 2px solid;
+  border-right: 0;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.collaboration-cursor__label {
+  border-radius: 4px;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  left: -2px;
+  line-height: normal;
+  padding: 1px 5px;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Table styles */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  min-width: 1em;
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.dark .ProseMirror table td,
+.dark .ProseMirror table th {
+  border-color: #334155;
+}
+
+.ProseMirror table th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f1f5f9;
+}
+
+.dark .ProseMirror table th {
+  background-color: #1e293b;
+}
+
+/* Task lists */
+ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+
+ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.25rem;
+}
+
+ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}

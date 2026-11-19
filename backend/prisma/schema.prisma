@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  COMMENTER
+  VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum ActivityAction {
+  USER_REGISTERED
+  USER_LOGGED_IN
+  WORKSPACE_CREATED
+  WORKSPACE_UPDATED
+  WORKSPACE_DELETED
+  MEMBER_INVITED
+  MEMBER_JOINED
+  MEMBER_ROLE_UPDATED
+  MEMBER_REMOVED
+  PAGE_CREATED
+  PAGE_UPDATED
+  PAGE_DELETED
+  PAGE_RESTORED
+  COMMENT_ADDED
+  COMMENT_RESOLVED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  cursorColor  String   @default("#3b82f6") // Default user presence cursor color
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  ownedWorkspaces      Workspace[]           @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  sentInvitations      WorkspaceInvitation[] @relation("Inviter")
+  createdPages         Page[]                @relation("PageCreator")
+  lastEditedPages      Page[]                @relation("PageLastEditor")
+  pageVersions         PageVersion[]         @relation("VersionCreator")
+  comments             Comment[]             @relation("CommentAuthor")
+  resolvedComments     Comment[]             @relation("CommentResolver")
+  commentReplies       CommentReply[]        @relation("ReplyAuthor")
+  refreshTokens        RefreshToken[]
+  activityLogs         ActivityLog[]
+
+  @@index([email])
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  slug        String?
+  ownerId     String
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members      WorkspaceMember[]
+  invitations  WorkspaceInvitation[]
+  pages        Page[]
+  activityLogs ActivityLog[]
+
+  @@index([ownerId])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(EDITOR)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model WorkspaceInvitation {
+  id          String           @id @default(uuid())
+  workspaceId String
+  inviterId   String
+  email       String
+  tokenHash   String           @unique
+  role        Role             @default(EDITOR)
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("Inviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([email])
+  @@index([tokenHash])
+}
+
+model Page {
+  id                      String   @id @default(uuid())
+  workspaceId             String
+  title                   String   @default("Untitled")
+  icon                    String?  @default("📄")
+  order                   Int      @default(0)
+  createdById             String
+  lastEditedById          String?
+  collaborationGeneration Int      @default(1)
+  isArchived              Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  workspace              Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy              User                    @relation("PageCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lastEditedBy           User?                   @relation("PageLastEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  collaborationDocuments CollaborationDocument[]
+  versions               PageVersion[]
+  comments               Comment[]
+  activityLogs           ActivityLog[]
+
+  @@index([workspaceId])
+  @@index([createdById])
+}
+
+model CollaborationDocument {
+  id          String   @id @default(uuid())
+  pageId      String
+  generation  Int      @default(1)
+  snapshot    Bytes    // Binary Yjs state snapshot encoded as Uint8Array/Buffer
+  stateVector Bytes?   // Optional state vector cache
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  page    Page                  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  updates CollaborationUpdate[]
+
+  @@unique([pageId, generation])
+  @@index([pageId])
+}
+
+model CollaborationUpdate {
+  id         String   @id @default(uuid())
+  documentId String
+  updateData Bytes    // Binary incremental Yjs update
+  createdAt  DateTime @default(now())
+
+  document CollaborationDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([createdAt])
+}
+
+model PageVersion {
+  id             String   @id @default(uuid())
+  pageId         String
+  generation     Int
+  name           String
+  description    String?
+  snapshot       Bytes    // Full restorable Yjs document binary snapshot
+  createdById    String
+  restoredFromId String?
+  createdAt      DateTime @default(now())
+
+  page      Page  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("VersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([pageId])
+  @@index([createdById])
+}
+
+model Comment {
+  id          String    @id @default(uuid())
+  pageId      String
+  authorId    String
+  content     String
+  anchor      Json?     // Optional anchor: { from: number, to: number, quote: string }
+  isResolved  Boolean   @default(false)
+  resolvedById String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  page       Page           @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  author     User           @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy User?          @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  replies    CommentReply[]
+
+  @@index([pageId])
+  @@index([authorId])
+}
+
+model CommentReply {
+  id        String   @id @default(uuid())
+  commentId String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  author  User    @relation("ReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
+  @@index([authorId])
+}
+
+model RefreshToken {
+  id               String   @id @default(uuid())
+  userId           String
+  tokenHash        String   @unique
+  expiresAt        DateTime
+  revoked          Boolean  @default(false)
+  replacedByToken  String?
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model ActivityLog {
+  id          String         @id @default(uuid())
+  workspaceId String
+  userId      String?
+  pageId      String?
+  action      ActivityAction
+  details     Json?
+  createdAt   DateTime       @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  page      Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([pageId])
+  @@index([createdAt])
+}
